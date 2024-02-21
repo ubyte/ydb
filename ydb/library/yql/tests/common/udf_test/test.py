@@ -100,9 +100,9 @@ def test(case):
     with open(results_path, 'w') as f:
         f.write(yqlrun_res.results)
 
-    to_canonize = [yqlrun_res.std_err] if xfail else [yatest.common.canonical_file(yqlrun_res.results_file, local=True, diff_tool=diff_tool)]
+    to_canonize = [yqlrun_res.std_err] if xfail else [yatest.common.canonical_file(yqlrun_res.results_file, diff_tool=diff_tool)]
 
     if canonize_ast:
-        to_canonize += [yatest.common.canonical_file(yqlrun_res.opt_file, local=True, diff_tool=ASTDIFF_PATH)]
+        to_canonize += [yatest.common.canonical_file(yqlrun_res.opt_file, diff_tool=ASTDIFF_PATH)]
 
     return to_canonize
