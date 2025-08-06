@@ -5,6 +5,10 @@
     TSelf& name(const type& value) { \
         name##_ = value; \
         return static_cast<TSelf&>(*this); \
+    } \
+    TSelf& name(type&& value) { \
+        name##_ = std::move(value); \
+        return static_cast<TSelf&>(*this); \
     }
 
 #define FLUENT_SETTING_OPTIONAL(type, name) \
@@ -12,12 +16,20 @@
     TSelf& name(const std::optional<type>& value) { \
         name##_ = value; \
         return static_cast<TSelf&>(*this); \
+    } \
+    TSelf& name(std::optional<type>&& value) { \
+        name##_ = std::move(value); \
+        return static_cast<TSelf&>(*this); \
     }
 
 #define FLUENT_SETTING_DEFAULT(type, name, defaultValue) \
     type name##_ = defaultValue; \
     TSelf& name(const type& value) { \
         name##_ = value; \
+        return static_cast<TSelf&>(*this); \
+    } \
+    TSelf& name(type&& value) { \
+        name##_ = std::move(value); \
         return static_cast<TSelf&>(*this); \
     }
 
@@ -39,6 +51,10 @@
     TSelf& Append##name(const type& value) { \
         name##_.push_back(value); \
         return static_cast<TSelf&>(*this); \
+    } \
+    TSelf& Append##name(type&& value) { \
+        name##_.push_back(std::move(value)); \
+        return static_cast<TSelf&>(*this); \
     }
 
 #define FLUENT_SETTING_OPTIONAL_VECTOR(type, name) \
@@ -46,5 +62,10 @@
     TSelf& Append##name(const type& value) { \
         if (!name##_) name##_ = std::vector<type>{}; \
         name##_->push_back(value); \
+        return static_cast<TSelf&>(*this); \
+    } \
+    TSelf& Append##name(type&& value) { \
+        if (!name##_) name##_ = std::vector<type>{}; \
+        name##_->push_back(std::move(value)); \
         return static_cast<TSelf&>(*this); \
     }
