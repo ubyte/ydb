@@ -789,7 +789,7 @@ message Consumer {
     // Must have valid not empty name as a key.
     string name = 1;
     // Consumer may be marked as 'important'. It means that messages for this consumer will not expire due to retention
-    // for at least `retention_time_seconds`. If `retention_time_seconds` is not defined, then the messages will never exipe.
+    // for at least `retention_time`. If `retention_time` is not defined, then the messages will never exipe.
     // User should take care that such consumer never stalls, to prevent running out of disk space.
     // Flag that this consumer is important.
     bool important = 2;
@@ -823,7 +823,7 @@ message Consumer {
 
     // Guaranteed messages lifetime if consumer is important.
     // Missing value means infinity.
-    optional uint64 retention_time_seconds = 8;
+    optional google.protobuf.Duration retention_time = 8;
 }
 
 // Consumer alter description.
@@ -849,7 +849,7 @@ message AlterConsumer {
 
     // Change message lifetime if consumer is important.
     // Set maximal value to disable expiration.
-    optional uint64 set_retention_time_seconds = 7;
+    optional google.protobuf.Duration set_retention_time = 7;
 }
 
 enum AutoPartitioningStrategy {
