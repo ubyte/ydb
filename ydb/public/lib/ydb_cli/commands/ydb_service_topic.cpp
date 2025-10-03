@@ -554,6 +554,9 @@ namespace NYdb::NConsoleClient {
             .Optional()
             .DefaultValue(false)
             .StoreResult(&IsImportant_);
+        config.Opts->AddLongOption("availability-period-hours", "Duration in hours for which uncommited data in topic is retained")
+            .Optional()
+            .StoreResult(&AvailabilityPeriodHours_);
         config.Opts->SetFreeArgsNum(1);
         SetFreeArgTitle(0, "<topic-path>", "Topic path");
         AddAllowedCodecs(config, AllowedCodecs);
@@ -584,6 +587,9 @@ namespace NYdb::NConsoleClient {
             consumerSettings.SetSupportedCodecs(codecs);
         }
         consumerSettings.SetImportant(IsImportant_);
+        if (AvailabilityPeriodHours_.Defined()) {
+            consumerSettings.AvailabilityPeriod(TDuration::Hours(*AvailabilityPeriodHours_));
+        }
 
         readRuleSettings.AppendAddConsumers(consumerSettings);
 
