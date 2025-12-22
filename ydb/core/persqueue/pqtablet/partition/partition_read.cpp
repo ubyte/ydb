@@ -49,19 +49,21 @@ static TString CheckOrder(const std::deque<TDataKey>& c, const std::deque<TDataK
     ui32 unCnt = 0;
     ui32 ttlCnt = 0;
     for (const auto* zone : {&c, &h, &fw}) {
-        TStringBuf zoneName;
+        TStringBuf zoneName = "error";
         if (zone == &c) {
-            zoneName = "cb";
+            zoneName = "compact_body";
         } else if (zone == &h) {
-            zoneName = "ch";
+            zoneName = "compact_head";
+        } else if (zone = &fw) {
+            zoneName = "fast_write";
         } else {
-            zoneName = "fw";
+            Y_DEBUG_ABORT("unknown zone");
         }
 
         for (const auto& key : *zone) {
             size_t i = 0;
             if (pts && key.Timestamp < pts) {
-                sb << "Unordered " << pZoneName << " " << zoneName << " " << i << ": " << pts->MilliSeconds() << " > " << key.Timestamp.MilliSeconds() << "\n";
+                sb << "Unordered " << pZoneName << "->" << zoneName << " " << i << ": " << pts->MilliSeconds() << " > " << key.Timestamp.MilliSeconds() << "\n";
                 ++unCnt;
             }
             pts = key.Timestamp;
@@ -90,7 +92,7 @@ ui64 TPartition::GetReadOffset(ui64 offset, TMaybe<TInstant> readTimestamp) cons
     if (AppData()->FeatureFlags.GetEnableSkipMessagesWithObsoleteTimestamp()) {
         // round timestamp down, because timestamps are stored with second precision in the kv-tablet
         readTimestamp = TInstant::Seconds(readTimestamp->Seconds());
-        ss << "round readTimestamp=" << readTimestamp.GetOrElse(TInstant::Max()).MilliSeconds();
+        ss << "round readTimestamp=" << readTimestamp.GetOrElse(TInstant::Max()).MilliSeconds() << "\n";
     }
     TMaybe<ui64> estimatedOffset1 = GetOffsetEstimate(CompactionBlobEncoder.DataKeysBody, *readTimestamp);
     TMaybe<ui64> estimatedOffset2 = GetOffsetEstimate(CompactionBlobEncoder.HeadKeys, *readTimestamp);
@@ -506,7 +508,7 @@ TMaybe<TReadAnswer> TReadInfo::AddBlobsFromBody(const TVector<NPQ::TRequestedBlo
 
         AFL_ENSURE(blobs[pos].RawValue.size() <= blobs[pos].Size)("value for offset", offset)("count", count)
             ("size must be",  blobs[pos].Size)("got", blobs[pos].RawValue.size());
-        
+
         auto blobBatches = blobs[pos].GetBatches();
         if (offset > Offset || (offset == Offset && partNo > PartNo)) { // got gap
             Offset = offset;
