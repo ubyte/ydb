@@ -26,7 +26,7 @@ struct TTopicInitInfo {
     TString FolderId;
     NKikimrPQ::TPQTabletConfig::EMeteringMode MeteringMode;
     THashMap<ui32, TPartitionInfo> Partitions;
-    std::shared_ptr<NPQ::TPartitionGraph> PartitionGraph;
+    std::shared_ptr<const NPQ::TPartitionGraph> PartitionGraph;
 };
 
 using TTopicInitInfoMap = THashMap<TString, TTopicInitInfo>;
@@ -49,7 +49,7 @@ struct TTopicHolder {
 
     TVector<ui32> Groups;
     THashMap<ui32, TPartitionInfo> Partitions;
-    std::shared_ptr<NPQ::TPartitionGraph> PartitionGraph;
+    std::shared_ptr<const NPQ::TPartitionGraph> PartitionGraph;
 
     TTopicHolder() {
     }
