@@ -212,7 +212,7 @@ private:
     void CommitDone(ui64 cookie, const TActorContext& ctx);
     void SendPartitionReady(const TActorContext& ctx);
 
-    const std::set<NPQ::TPartitionGraph::Node*>& GetParents(std::shared_ptr<NPQ::TPartitionGraph> partitionGraph) const;
+    const std::set<NPQ::TPartitionGraph::Node*>& GetParents(std::shared_ptr<const NPQ::TPartitionGraph> partitionGraph) const;
 
 private:
     const TActorId ParentId;
@@ -1947,7 +1947,7 @@ void TPartitionActor::CheckRelease(const TActorContext& ctx) {
     }
 }
 
-const std::set<NPQ::TPartitionGraph::Node*>& TPartitionActor::GetParents(std::shared_ptr<NPQ::TPartitionGraph> partitionGraph) const {
+const std::set<NPQ::TPartitionGraph::Node*>& TPartitionActor::GetParents(std::shared_ptr<const NPQ::TPartitionGraph> partitionGraph) const {
     const auto* partition = partitionGraph->GetPartition(Partition);
     if (partition) {
         return partition->AllParents;
