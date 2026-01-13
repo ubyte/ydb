@@ -160,23 +160,22 @@ void TPartitionActor::Bootstrap(const TActorContext& ctx) {
     ctx.Schedule(PREWAIT_DATA, new TEvents::TEvWakeup());
 }
 
-const std::set<NPQ::TPartitionGraph::Node*>& TPartitionActor::GetParents(std::shared_ptr<const NPQ::TPartitionGraph> partitionGraph) const {
+std::shared_ptr<const std::set<NPQ::TPartitionGraph::Node*>> TPartitionActor::GetParents() const {
+    std::shared_ptr<const NPQ::TPartitionGraph> partitionGraph = TopicHolder->PartitionGraph;
     const auto* partition = partitionGraph->GetPartition(Partition.Partition);
     if (partition) {
-        return partition->AllParents;
+        return {std::move(partitionGraph), &partition->AllParents};
     }
 
-    static std::set<NPQ::TPartitionGraph::Node*> empty;
-    return empty;
+    static const std::set<NPQ::TPartitionGraph::Node*> empty;
+    return {std::shared_ptr<void>(), &empty};
 }
 
 void TPartitionActor::SendCommit(const ui64 readId, const ui64 offset, const TActorContext& ctx) {
-    // extend the lifetime for PartitionGraph
-    auto partitionGraph = TopicHolder->PartitionGraph;
-    const auto& parents = GetParents(partitionGraph);
-    if (!ClientHasAnyCommits && parents.size() != 0) {
+    const auto& parents = GetParents();
+    if (!ClientHasAnyCommits && parents->size() != 0) {
         std::vector<TDistributedCommitHelper::TCommitInfo> commits;
-        for (auto& parent: parents) {
+        for (auto& parent: *parents) {
             TDistributedCommitHelper::TCommitInfo commit {.PartitionId = parent->Id, .Offset = Max<i64>(), .KillReadSession = false, .OnlyCheckCommitedToFinish = true, .ReadSessionId = Session};
             commits.push_back(commit);
         }

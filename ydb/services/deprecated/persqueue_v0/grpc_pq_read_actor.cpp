@@ -212,7 +212,7 @@ private:
     void CommitDone(ui64 cookie, const TActorContext& ctx);
     void SendPartitionReady(const TActorContext& ctx);
 
-    const std::set<NPQ::TPartitionGraph::Node*>& GetParents(std::shared_ptr<const NPQ::TPartitionGraph> partitionGraph) const;
+    std::shared_ptr<const std::set<NPQ::TPartitionGraph::Node*>> GetParents() const;
 
 private:
     const TActorId ParentId;
@@ -1947,23 +1947,22 @@ void TPartitionActor::CheckRelease(const TActorContext& ctx) {
     }
 }
 
-const std::set<NPQ::TPartitionGraph::Node*>& TPartitionActor::GetParents(std::shared_ptr<const NPQ::TPartitionGraph> partitionGraph) const {
+std::shared_ptr<const std::set<NPQ::TPartitionGraph::Node*>> TPartitionActor::GetParents() const {
+    std::shared_ptr<const NPQ::TPartitionGraph> partitionGraph = TopicHolder->PartitionGraph;
     const auto* partition = partitionGraph->GetPartition(Partition);
     if (partition) {
-        return partition->AllParents;
+        return {std::move(partitionGraph), &partition->AllParents};
     }
 
-    static std::set<NPQ::TPartitionGraph::Node*> empty;
-    return empty;
+    static const std::set<NPQ::TPartitionGraph::Node*> empty;
+    return {std::shared_ptr<void>(), &empty};
 }
 
 void TPartitionActor::SendCommit(const ui64 readId, const ui64 offset, const TActorContext& ctx) {
-    // extend the lifetime for PartitionGraph
-    auto partitionGraph = TopicHolder->PartitionGraph;
-    const auto& parents = GetParents(partitionGraph);
-    if (!ClientHasAnyCommits && parents.size() != 0) {
+    const auto& parents = GetParents();
+    if (!ClientHasAnyCommits && parents->size() != 0) {
         std::vector<NKikimr::NGRpcProxy::V1::TDistributedCommitHelper::TCommitInfo> commits;
-        for (auto& parent: parents) {
+        for (auto& parent: *parents) {
             NKikimr::NGRpcProxy::V1::TDistributedCommitHelper::TCommitInfo commit {.PartitionId = parent->Id, .Offset = Max<i64>(), .KillReadSession = false, .OnlyCheckCommitedToFinish = true, .ReadSessionId = Session};
             commits.push_back(commit);
         }
