@@ -450,28 +450,32 @@ TUserInfo& TUsersInfoStorage::GetOrCreate(const TString& user, const TActorConte
         auto s = counters
             ->GetSubgroup("counters", IsServerless ? "topics_per_partition_serverless" : "topics_per_partition")
             ->GetSubgroup("host", "");
-        if (const auto& id = Config.GetMonitoringProjectId(); !id.empty()) {
-            s = s->GetSubgroup("monitoring_project_id", id);
-        }
-        return s
+
+        s = s
             ->GetSubgroup("database", Config.GetYdbDatabasePath())
             ->GetSubgroup("cloud_id", CloudId)
             ->GetSubgroup("folder_id", FolderId)
             ->GetSubgroup("database_id", DbId)
             ->GetSubgroup("topic", TopicConverter->GetClientsideName())
             ->GetSubgroup("partition_id", ToString(Partition));
+        if (const auto& id = Config.GetMonitoringProjectId(); !id.empty()) {
+            s = s->GetSubgroup("monitoring_project_id", id);
+        }
+        return s;
     } else {
         auto s = counters
             ->GetSubgroup("counters", "topics_per_partition")
             ->GetSubgroup("host", "cluster");
-        if (const auto& id = Config.GetMonitoringProjectId(); !id.empty()) {
-            s = s->GetSubgroup("monitoring_project_id", id);
-        }
-        return s
+
+        s = s
             ->GetSubgroup("Account", TopicConverter->GetAccount())
             ->GetSubgroup("TopicPath", TopicConverter->GetFederationPath())
             ->GetSubgroup("OriginDC", to_title(TopicConverter->GetCluster()))
             ->GetSubgroup("Partition", ToString(Partition));
+        if (const auto& id = Config.GetMonitoringProjectId(); !id.empty()) {
+            s = s->GetSubgroup("monitoring_project_id", id);
+        }
+        return s;
     }
 }
 

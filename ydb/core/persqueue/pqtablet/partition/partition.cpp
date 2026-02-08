@@ -4550,28 +4550,32 @@ IActor* CreatePartitionActor(ui64 tabletId, const TPartitionId& partition, const
         auto s = counters
             ->GetSubgroup("counters", IsServerless ? "topics_per_partition_serverless" : "topics_per_partition")
             ->GetSubgroup("host", "");
-        if (!MonitoringProjectId.empty()) {
-            s = s->GetSubgroup("monitoring_project_id", MonitoringProjectId);
-        }
-        return s
+
+        s = s
             ->GetSubgroup("database", Config.GetYdbDatabasePath())
             ->GetSubgroup("cloud_id", CloudId)
             ->GetSubgroup("folder_id", FolderId)
             ->GetSubgroup("database_id", DbId)
             ->GetSubgroup("topic", EscapeBadChars(TopicName()))
             ->GetSubgroup("partition_id", ToString(Partition.InternalPartitionId));
+        if (!MonitoringProjectId.empty()) {
+            s = s->GetSubgroup("monitoring_project_id", MonitoringProjectId);
+        }
+        return s;
     } else {
         auto s = counters
             ->GetSubgroup("counters", "topics_per_partition")
             ->GetSubgroup("host", "cluster");
-        if (!MonitoringProjectId.empty()) {
-            s = s->GetSubgroup("monitoring_project_id", MonitoringProjectId);
-        }
-        return s
+
+        s = s
             ->GetSubgroup("Account", TopicConverter->GetAccount())
             ->GetSubgroup("TopicPath", TopicConverter->GetFederationPath())
             ->GetSubgroup("OriginDC", to_title(TopicConverter->GetCluster()))
             ->GetSubgroup("Partition", ToString(Partition.InternalPartitionId));
+        if (!MonitoringProjectId.empty()) {
+            s = s->GetSubgroup("monitoring_project_id", MonitoringProjectId);
+        }
+        return s;
     }
 }
 
