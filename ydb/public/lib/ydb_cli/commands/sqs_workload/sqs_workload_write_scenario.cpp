@@ -40,6 +40,7 @@ namespace NYdb::NConsoleClient {
             .BatchSize = BatchSize,
             .WorkersCount = WorkersCount,
             .GroupsAmount = GroupsAmount,
+            .GroupsPrefix = GroupsPrefix,
             .MessageSize = MessageSize,
         };
 

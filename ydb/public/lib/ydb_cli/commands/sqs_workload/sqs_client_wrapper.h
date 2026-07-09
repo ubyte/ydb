@@ -38,6 +38,7 @@ namespace NYdb::NConsoleClient {
             mutable std::unordered_map<Aws::String, ui64> LastReceivedMessageInGroup;
 
             bool fifoValidationEnabled;
+            bool printMessageGroups = true;
     };
 
 } // namespace NYdb::NConsoleClient

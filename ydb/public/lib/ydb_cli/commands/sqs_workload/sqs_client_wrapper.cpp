@@ -85,7 +85,13 @@ namespace NYdb::NConsoleClient {
             ReceiverMessageGroupsLocker.Lock(messageGroups);
         }
 
-        std::unique_lock lock(MessageGroupsMutex);
+        const auto ts = TInstant::Now();
+
+        TStringStream messageGroupsStream;
+        std::unique_lock lock(MessageGroupsMutex, std::defer_lock);
+        if (fifoValidationEnabled) {
+            lock.lock();
+        }
         for (auto& message : response.GetResult().GetMessages()) {
             const auto& body = message.GetBody();
             auto sendTimestamp = ExtractSendTimestamp(body);
@@ -93,29 +99,47 @@ namespace NYdb::NConsoleClient {
             TSqsWorkloadStats::GotMessageEvent event{
                 body.size(),
                 now - sendTimestamp,
-                1
-            };
+                1};
             StatsCollector->AddGotMessageEvent(event);
 
-            if (!fifoValidationEnabled) {
-                continue;
+            if (fifoValidationEnabled) {
+                const auto& attributes = message.GetAttributes();
+                auto messageGroupId = attributes.find(Aws::SQS::Model::MessageSystemAttributeName::MessageGroupId);
+                if (messageGroupId != attributes.end()) {
+                    auto lastReceivedMessageInGroup = LastReceivedMessageInGroup.find(messageGroupId->second);
+                    if (lastReceivedMessageInGroup != LastReceivedMessageInGroup.end() && lastReceivedMessageInGroup->second > sendTimestamp) {
+                        ReceiverMessageGroupsLocker.Unlock(messageGroups);
+                        throw std::runtime_error("Message received out of order");
+                    }
+                    LastReceivedMessageInGroup[messageGroupId->second] = sendTimestamp;
+                }
             }
 
-            const auto& attributes = message.GetAttributes();
-            auto messageGroupId = attributes.find(Aws::SQS::Model::MessageSystemAttributeName::MessageGroupId);
-            if (messageGroupId != attributes.end()) {
-                auto lastReceivedMessageInGroup = LastReceivedMessageInGroup.find(messageGroupId->second);
-                if (lastReceivedMessageInGroup != LastReceivedMessageInGroup.end() && lastReceivedMessageInGroup->second > sendTimestamp) {
-                    ReceiverMessageGroupsLocker.Unlock(messageGroups);
-                    throw std::runtime_error("Message received out of order");
-                }
-                LastReceivedMessageInGroup[messageGroupId->second] = sendTimestamp;
+            if (printMessageGroups) {
+                const auto& attributes = message.GetAttributes();
+                auto get = [&attributes](const auto& key) -> Aws::String {
+                    if (auto* messageGroupId = MapFindPtr(attributes, key)) {
+                        return *messageGroupId;
+                    } else {
+                        return "-";
+                    }
+                };
+
+                messageGroupsStream << get(Aws::SQS::Model::MessageSystemAttributeName::MessageGroupId) << '\t';
+                messageGroupsStream << get(Aws::SQS::Model::MessageSystemAttributeName::SenderId) << '\t';
+                messageGroupsStream << get(Aws::SQS::Model::MessageSystemAttributeName::SentTimestamp) << '\t';
+                messageGroupsStream << ts.MilliSeconds() << '\n';
             }
+        }
+        if (lock.owns_lock()) {
+            lock.unlock();
         }
 
         if (fifoValidationEnabled) {
             ReceiverMessageGroupsLocker.Unlock(messageGroups);
         }
+
+        Cout << messageGroupsStream.Str();
 
         return response;
     }

@@ -22,14 +22,14 @@ namespace NYdb::NConsoleClient {
         }
 
         Aws::Vector<Aws::SQS::Model::SendMessageBatchRequestEntry>
-        CreateSendMessageBatchRequestEntries(const TSqsWorkloadWriterParams& params, ui32 messageGroupID, ui32 messageDeduplicationID) {
+        CreateSendMessageBatchRequestEntries(const TSqsWorkloadWriterParams& params, std::function<std::optional<std::string>()>& genMessageGroupID, ui32 messageDeduplicationID) {
             Aws::Vector<Aws::SQS::Model::SendMessageBatchRequestEntry> entries;
             for (ui32 i = 0; i < params.BatchSize; ++i) {
                 Aws::String messageBody(params.MessageSize, 'a');
                 Aws::SQS::Model::SendMessageBatchRequestEntry entry;
                 entry.WithMessageBody(messageBody).WithId(fmt::format("{}", i));
-                if (params.GroupsAmount > 0) {
-                    entry.WithMessageGroupId(fmt::format("{}", messageGroupID));
+                if (auto messageGroupId = genMessageGroupID()) {
+                    entry.WithMessageGroupId(fmt::format("{}", *messageGroupId));
                 }
 
                 if (params.MaxUniqueMessages > 0) {
@@ -72,10 +72,23 @@ namespace NYdb::NConsoleClient {
         std::uniform_int_distribution<ui32> messageGroupsDistribution(0, params.GroupsAmount - 1);
         std::uniform_int_distribution<ui32> messageDeduplicationDistribution(0, params.MaxUniqueMessages - 1);
 
+        std::function<std::optional<std::string>()> genMessageGroupID = [](){ return std::nullopt; };
+        if (params.GroupsAmount > 0) {
+            genMessageGroupID = [&]()-> std::optional<std::string> { return fmt::format("{}_{}", params.GroupsPrefix, messageGroupsDistribution(rng)); };
+        } else if (params.GroupsAmount < 0) {
+            genMessageGroupID = [c = i32(0), &params]() mutable -> std::optional<std::string> {
+                int pc = c;
+                if (++c >= -params.GroupsAmount) {
+                    c = 0;
+                }
+                return fmt::format("{}_{}", params.GroupsPrefix, pc);
+            };
+        }
+
         while (Now() < endTime && !params.ErrorFlag->load()) {
             Aws::SQS::Model::SendMessageBatchRequest sendMessageBatchRequest;
             sendMessageBatchRequest.SetQueueUrl(params.QueueUrl.c_str());
-            sendMessageBatchRequest.SetEntries(CreateSendMessageBatchRequestEntries(params, messageGroupsDistribution(rng), messageDeduplicationDistribution(rng)));
+            sendMessageBatchRequest.SetEntries(CreateSendMessageBatchRequestEntries(params, genMessageGroupID, messageDeduplicationDistribution(rng)));
             sendMessageBatchRequest.SetAdditionalCustomHeaderValue(
                 AMZ_TARGET_HEADER, SQS_TARGET_SEND_MESSAGE_BATCH);
 
