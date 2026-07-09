@@ -71,10 +71,15 @@ void TMessageEnricherActor::TrySendReplyImpl(size_t replyIndex, bool waitForComp
         return;
     }
     const TReadResult& reply = Replies[replyIndex];
-    if (pr.EnrichedCount > 0 || allowEmpty) {
-        Send(reply.Sender, pr.Response.release(), 0, reply.Cookie);
+    if (!pr.IsComplete()) {
+        LOG_E("Messages were not found: " << LabeledOutput(pr.EnrichedCount, pr.TotalMessages));
+        Send(reply.Sender, std::make_unique<TEvPQ::TEvMLPErrorResponse>(PartitionId, Ydb::StatusIds::INTERNAL_ERROR, TStringBuilder() << "Messages were not found: " << LabeledOutput(pr.EnrichedCount, pr.TotalMessages)).release(), 0, reply.Cookie);
     } else {
-        Send(reply.Sender, std::make_unique<TEvPQ::TEvMLPErrorResponse>(PartitionId, Ydb::StatusIds::INTERNAL_ERROR, "Messages were not found").release(), 0, reply.Cookie);
+        if (pr.EnrichedCount > 0 || allowEmpty) {
+            Send(reply.Sender, pr.Response.release(), 0, reply.Cookie);
+        } else {
+            Send(reply.Sender, std::make_unique<TEvPQ::TEvMLPErrorResponse>(PartitionId, Ydb::StatusIds::INTERNAL_ERROR, "Messages were not found").release(), 0, reply.Cookie);
+        }
     }
     pr.Sent = true;
     ++RepliesSent;
@@ -133,7 +138,7 @@ void TMessageEnricherActor::Handle(TEvPersQueue::TEvResponse::TPtr& ev) {
 
         if (entry.Offset < resultOffset) {
             entry.Processed = true;
-            --PendingResponses[entry.ReplyIndex].TotalMessages;
+            //--PendingResponses[entry.ReplyIndex].TotalMessages;
             TrySendReplyIfComplete(entry.ReplyIndex);
             ++entryIndex;
         } else if (entry.Offset > resultOffset) {
@@ -175,7 +180,7 @@ void TMessageEnricherActor::Handle(TEvPersQueue::TEvResponse::TPtr& ev) {
         auto& entry = SortedEntries[entryIndex];
         if (!entry.Processed) {
             entry.Processed = true;
-            --PendingResponses[entry.ReplyIndex].TotalMessages;
+            //--PendingResponses[entry.ReplyIndex].TotalMessages;
             TrySendReplyIfComplete(entry.ReplyIndex);
         }
         ++entryIndex;
