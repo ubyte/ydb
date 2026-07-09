@@ -1646,21 +1646,30 @@ TString TStorage::DebugString() const {
          << " BaseDeadline: " << BaseDeadline.ToString()
          << " BaseWriteTimestamp: " << BaseWriteTimestamp.ToString()
          << " Messages: [";
+    {
+        TStringBuilder dumpSb;
 
-    auto dump = [&](const auto offset, const auto& message, auto zone) {
-        sb << zone <<"{" << offset << ", "
-            << static_cast<EMessageStatus>(message.Status) << ", "
-            << message.DeadlineDelta << ", "
-            << message.WriteTimestampDelta << ", "
-            << GetMessageLockingTime(message).ToString() << ", "
-            << message.MessageGroupIdHash << "} ";
-    };
+        auto dump = [&](const auto offset, const auto& message, auto zone) {
+            dumpSb << zone <<"{" << offset << ", "
+                << static_cast<EMessageStatus>(message.Status) << ", "
+                << message.DeadlineDelta << ", "
+                << message.WriteTimestampDelta << ", "
+                << GetMessageLockingTime(message).ToString() << ", "
+                << message.MessageGroupIdHash << "} ";
+        };
 
-    for (auto& [offset, message] : SlowMessages) {
-        dump(offset, message, 's');
-    }
-    for (size_t i = 0; i < Messages.size(); ++i) {
-        dump(FirstOffset + i, Messages[i], 'f');
+        for (auto& [offset, message] : SlowMessages) {
+            dump(offset, message, 's');
+        }
+        for (size_t i = 0; i < Messages.size(); ++i) {
+            dump(FirstOffset + i, Messages[i], 'f');
+        }
+
+        if (TStringBuf s = dumpSb; s.size() > 1400) {
+            sb << s.SubString(0, 700)  << " ... " << s.SubString(s.size() - 700, -1);
+        } else {
+            sb << s;
+        }
     }
 
     sb << "] LockedGroups [" << JoinSeq(", ", GetLockedMessageGroupsId()) << "]";
