@@ -102,6 +102,17 @@ void PQTabletPrepare(const TTabletPreparationParameters& parameters,
                 tabletConfig->SetMonitoringProjectId(*parameters.monitoringProjectId);
             }
 
+            if (parameters.SqsAccountName) {
+                tabletConfig->SetSqsAccountName(parameters.SqsAccountName);
+            }
+            if (parameters.SqsQueueName) {
+                tabletConfig->SetSqsQueueName(parameters.SqsQueueName);
+            }
+            if (parameters.SqsFolderId) {
+                tabletConfig->SetSqsFolderId(parameters.SqsFolderId);
+            }
+            tabletConfig->SetSqsExportMetrics(parameters.SqsExportMetrics);
+
             for (const auto& u : users) {
                 auto* consumer = tabletConfig->AddConsumers();
                 consumer->SetName(u.Name);
@@ -111,6 +122,12 @@ void PQTabletPrepare(const TTabletPreparationParameters& parameters,
                 }
                 if (u.MetricsLevel.has_value()) {
                     consumer->SetMetricsLevel(*u.MetricsLevel);
+                }
+                if (u.MLP) {
+                    consumer->SetType(NKikimrPQ::TPQTabletConfig_EConsumerType_CONSUMER_TYPE_MLP);
+                }
+                if (u.KeepMessageOrder) {
+                    consumer->SetKeepMessageOrder(u.KeepMessageOrder);
                 }
             }
 

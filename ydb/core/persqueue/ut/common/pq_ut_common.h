@@ -266,12 +266,18 @@ struct TTabletPreparationParameters {
     bool enableCompactificationByKey{false};
     std::optional<uint32_t> metricsLevel;
     std::optional<TString> monitoringProjectId;
+    TString SqsAccountName;
+    TString SqsQueueName;
+    TString SqsFolderId;
+    bool SqsExportMetrics;
     bool AddDefaultConsumer{true};
 };
 
 struct TConsumerPreparationParameters {
     TString Name;
     bool Important = false;
+    bool MLP = false;
+    bool KeepMessageOrder = false;
     std::optional<uint32_t> MetricsLevel;
     std::optional<TString> MonitoringProjectId;
 };
