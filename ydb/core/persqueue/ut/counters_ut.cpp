@@ -1564,6 +1564,159 @@ Y_UNIT_TEST(ManyCounters) {
 
 Y_UNIT_TEST_SUITE(TSqsMigrationMetrics) {
 
+struct TSqsMigrationMetricsTestParameters {
+    bool KeepMessageOrder = false;
+    TString SqsFolderId;
+};
+
+void SqsMigrationMetrics(const TSqsMigrationMetricsTestParameters p) {
+    const TString caseDescr = TStringBuilder()
+                              << "KeepMessageOrder=" << p.KeepMessageOrder << ", "
+                              << "SqsFolderId=" << p.SqsFolderId;
+    Cerr << (TStringBuilder() << "Run SqsMigrationMetrics(" << caseDescr << ")\n");
+
+    TTestContext tc;
+    TFinalizer finalizer(tc);
+    bool activeZone{false};
+    tc.Prepare("", [](TTestActorRuntime&) {}, activeZone, true, true, true);
+    tc.Runtime->SetScheduledLimit(5000);
+
+    const TString mlpConsumerName = "ydb-sqs-consumer";
+
+    TTabletPreparationParameters parameters{
+        .SqsAccountName = "foo",
+        .SqsQueueName = "bar",
+        .SqsFolderId = p.SqsFolderId,
+        .SqsExportMetrics = true,
+    };
+
+    // The SQS metric sensors are created on the balancer side by InitializeSqsQueueMetrics and do not
+    // require the actual tablet to run an MLP consumer, so the tablet is prepared without one (running an
+    // MLP consumer on this test harness tablet triggers a verification failure inside mlp_consumer.cpp).
+    PQTabletPrepare(parameters, {}, *tc.Runtime, tc.TabletId, tc.Edge);
+
+    TFakeSchemeShardState::TPtr state{new TFakeSchemeShardState()};
+    ui64 ssId = 325;
+    BootFakeSchemeShard(*tc.Runtime, ssId, state);
+
+    {
+        TBalancerParams balancerParams = TBalancerParams::FromContext("topic", {{0, {tc.TabletId, 1}}}, ssId, tc, false, false);
+        balancerParams.SqsAccountName = "foo";
+        balancerParams.SqsQueueName = "bar";
+        balancerParams.SqsFolderId = p.SqsFolderId;
+        balancerParams.SqsExportMetrics = true;
+        balancerParams.MlpConsumerName = mlpConsumerName;
+        balancerParams.MlpKeepMessageOrder = p.KeepMessageOrder;
+        PQBalancerPrepare(balancerParams);
+    }
+
+    IActor* actor = CreateTabletCountersAggregator(false);
+    auto aggregatorId = tc.Runtime->Register(actor);
+    tc.Runtime->EnableScheduleForActor(aggregatorId);
+
+    CmdWrite(0, "sourceid0", TestData(), tc, false, {}, true);
+    CmdWrite(0, "sourceid1", TestData(), tc, false);
+    CmdWrite(0, "sourceid2", TestData(), tc, false);
+    PQGetPartInfo(0, 30, tc);
+
+    {
+        NSchemeCache::TDescribeResult::TPtr result = new NSchemeCache::TDescribeResult{};
+        result->SetPath("/Root");
+        TVector<TString> attrs = {"folder_id", "cloud_id", "database_id"};
+        for (auto& attr : attrs) {
+            auto ua = result->MutablePathDescription()->AddUserAttributes();
+            ua->SetKey(attr);
+            ua->SetValue(attr);
+        }
+        NSchemeCache::TDescribeResult::TCPtr cres = result;
+        auto event = MakeHolder<TEvTxProxySchemeCache::TEvWatchNotifyUpdated>(0, "/Root", TPathId{}, cres);
+        TActorId pipeClient = tc.Runtime->ConnectToPipe(tc.BalancerTabletId, tc.Edge, 0, GetPipeConfigWithRetries());
+        tc.Runtime->SendToPipe(tc.BalancerTabletId, tc.Edge, event.Release(), 0, GetPipeConfigWithRetries(), pipeClient);
+
+        TDispatchOptions options;
+        options.FinalEvents.emplace_back(TEvTxProxySchemeCache::EvWatchNotifyUpdated);
+        auto processedCountersEvent = tc.Runtime->DispatchEvents(options);
+        UNIT_ASSERT_VALUES_EQUAL(processedCountersEvent, true);
+    }
+    {
+        TDispatchOptions options;
+        options.FinalEvents.emplace_back(TEvPersQueue::EvPeriodicTopicStats);
+        auto processedCountersEvent = tc.Runtime->DispatchEvents(options);
+        UNIT_ASSERT_VALUES_EQUAL(processedCountersEvent, true);
+    }
+
+    auto counters = tc.Runtime->GetAppData(0).Counters;
+    TStringStream ss;
+    counters->OutputHtml(ss);
+    const TString allCounters = ss.Str();
+
+    const TVector<TStringBuf> expectedSensors = p.SqsFolderId.empty()
+        ? TVector<TStringBuf>{
+            "MessagesCount",
+            "InflyMessagesCount",
+            "SendMessage_Count",
+            "SendMessage_BytesWritten",
+            "SendMessage_Duration",
+            "SendMessage_Errors",
+            "ReceiveMessage_Count",
+            "ReceiveMessage_EmptyCount",
+            "ReceiveMessage_BytesRead",
+            "ReceiveMessage_WorkingDuration",
+            "ReceiveMessage_Errors",
+            "MessageReside_Duration",
+            "ClientMessageProcessing_Duration",
+            "MessageReceiveAttempts",
+            "OldestMessageAgeSeconds",
+            "DeleteMessage_Count",
+            "MessagesPurged",
+            "DeleteMessage_Duration",
+            "DeleteMessage_Errors",
+            "MessagesMovedToDLQ",
+        }
+        : TVector<TStringBuf>{
+            "queue.total_count",
+            "queue.messages.sent_count_per_second",
+            "queue.messages.sent_bytes_per_second",
+            "queue.messages.received_bytes_per_second",
+            "queue.messages.received_count_per_second",
+            "queue.messages.inflight_count",
+            "queue.messages.receive_attempts_count_rate",
+            "queue.messages.empty_receive_attempts_count_per_second",
+            "queue.messages.client_processing_duration_milliseconds",
+            "queue.messages.deleted_count_per_second",
+            "queue.messages.purged_count_per_second",
+            "queue.messages.stored_count",
+            "queue.messages.oldest_age_milliseconds",
+            "queue.messages.reside_duration_milliseconds",
+        };
+
+    TStringBuilder expected;
+    TStringBuilder actual;
+    for (const auto& sensor : expectedSensors) {
+        const bool present = allCounters.Contains(sensor);
+        expected << sensor << "=present\n";
+        actual << sensor << "=" << (present ? "present" : "absent") << "\n";
+    }
+
+    UNIT_ASSERT_VALUES_EQUAL_C(TString(actual), TString(expected), caseDescr + "\n" + allCounters);
+}
+
+Y_UNIT_TEST(SqsBackendEmptyFolderKeepOrder) {
+    SqsMigrationMetrics({.KeepMessageOrder = true, .SqsFolderId = ""});
+}
+
+Y_UNIT_TEST(SqsBackendEmptyFolderNoKeepOrder) {
+    SqsMigrationMetrics({.KeepMessageOrder = false, .SqsFolderId = ""});
+}
+
+Y_UNIT_TEST(YmqBackendNonEmptyFolderKeepOrder) {
+    SqsMigrationMetrics({.KeepMessageOrder = true, .SqsFolderId = "qux"});
+}
+
+Y_UNIT_TEST(YmqBackendNonEmptyFolderNoKeepOrder) {
+    SqsMigrationMetrics({.KeepMessageOrder = false, .SqsFolderId = "qux"});
+}
+
 }
 
 } // namespace NKikimr::NPQ
