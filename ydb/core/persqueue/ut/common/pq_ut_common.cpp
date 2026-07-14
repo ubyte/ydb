@@ -247,7 +247,9 @@ void PQBalancerPrepare(const TString topic, const TVector<std::pair<ui32, std::p
                        TTestActorRuntime& runtime, ui64 balancerTabletId, TActorId edge, const bool requireAuth, bool kill,
                        const THashSet<TString>& xtraConsumers) {
 
-    return PQBalancerPrepare(TBalancerParams{topic, map, ssId, runtime, balancerTabletId, edge, requireAuth, kill, xtraConsumers});
+    return PQBalancerPrepare(TBalancerParams{
+        .Topic = topic, .Map = map, .SsId = ssId, .Runtime = runtime, .BalancerTabletId = balancerTabletId,
+        .Edge = edge, .RequireAuth = requireAuth, .Kill = kill, .XtraConsumers = xtraConsumers});
 }
 
 void PQBalancerPrepare(const TBalancerParams& params) {
@@ -285,9 +287,25 @@ void PQBalancerPrepare(const TBalancerParams& params) {
             for (const auto& c : params.XtraConsumers) {
                 request->Record.MutableTabletConfig()->AddConsumers()->SetName(c);
             };
+            if (params.MlpConsumerName) {
+                auto* mlpConsumer = request->Record.MutableTabletConfig()->AddConsumers();
+                mlpConsumer->SetName(params.MlpConsumerName);
+                mlpConsumer->SetType(NKikimrPQ::TPQTabletConfig_EConsumerType_CONSUMER_TYPE_MLP);
+                mlpConsumer->SetKeepMessageOrder(params.MlpKeepMessageOrder);
+            }
             request->Record.MutableTabletConfig()->SetRequireAuthWrite(params.RequireAuth);
             request->Record.MutableTabletConfig()->SetRequireAuthRead(params.RequireAuth);
             request->Record.MutableTabletConfig()->SetEnableCompactification(params.EnableKeyCompaction);
+            if (params.SqsAccountName) {
+                request->Record.MutableTabletConfig()->SetSqsAccountName(params.SqsAccountName);
+            }
+            if (params.SqsQueueName) {
+                request->Record.MutableTabletConfig()->SetSqsQueueName(params.SqsQueueName);
+            }
+            if (params.SqsFolderId) {
+                request->Record.MutableTabletConfig()->SetSqsFolderId(params.SqsFolderId);
+            }
+            request->Record.MutableTabletConfig()->SetSqsExportMetrics(params.SqsExportMetrics);
             params.Runtime.SendToPipe(params.BalancerTabletId, params.Edge, request.Release(), 0, GetPipeConfigWithRetries());
             TEvPersQueue::TEvUpdateConfigResponse* result = params.Runtime.GrabEdgeEvent<TEvPersQueue::TEvUpdateConfigResponse>(handle);
 

@@ -301,6 +301,12 @@ struct TBalancerParams {
     bool Kill = true;
     THashSet<TString> XtraConsumers = {};
     bool EnableKeyCompaction = false;
+    TString SqsAccountName;
+    TString SqsQueueName;
+    TString SqsFolderId;
+    bool SqsExportMetrics = false;
+    TString MlpConsumerName;
+    bool MlpKeepMessageOrder = false;
 
     static TBalancerParams FromContext(const TString topic,
             const TVector<std::pair<ui32, std::pair<ui64, ui32>>>& map,
