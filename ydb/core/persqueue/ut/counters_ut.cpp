@@ -1674,7 +1674,6 @@ void SqsMigrationMetrics(const TSqsMigrationMetricsTestParameters p) {
             "MessagesMovedToDLQ",
         }
         : TVector<TStringBuf>{
-            "queue.total_count",
             "queue.messages.sent_count_per_second",
             "queue.messages.sent_bytes_per_second",
             "queue.messages.received_bytes_per_second",
