@@ -1649,6 +1649,7 @@ void SqsMigrationMetrics(const TSqsMigrationMetricsTestParameters p) {
     TStringStream ss;
     counters->OutputHtml(ss);
     const TString allCounters = ss.Str();
+    Cerr << (TStringBuilder() << "\n\n" << allCounters << "\n\n");
 
     const TVector<TStringBuf> expectedSensors = p.SqsFolderId.empty()
         ? TVector<TStringBuf>{
