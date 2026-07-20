@@ -1671,10 +1671,6 @@ void SqsMigrationMetrics(const TSqsMigrationMetricsTestParameters p) {
         return c ? c->Val() : -1;
     };
 
-    // SendMessage/ReceiveMessage counters are populated only when the balancer receives a
-    // TEvTopicSqsActionMetrics event, which the YMQ SendMessage/ReceiveMessage actors emit after a real
-    // request. A raw CmdWrite to the partition never produces such an event, so here we reproduce what
-    // those actors do and forward the metrics to the balancer tablet.
     auto sendSqsActionMetrics = [&](const NKikimrPQ::TEvTopicSqsActionMetrics& record) {
         auto ev = MakeHolder<TEvPQ::TEvTopicSqsActionMetrics>();
         ev->Record = record;
@@ -1689,8 +1685,6 @@ void SqsMigrationMetrics(const TSqsMigrationMetricsTestParameters p) {
     UNIT_ASSERT_VALUES_EQUAL_C(readCounter(sentBytesName), 0, caseDescr);
     UNIT_ASSERT_VALUES_EQUAL_C(readCounter(receivedCountName), 0, caseDescr);
 
-    // The three CmdWrite calls above are reflected to the balancer as a SendMessage action, exactly like the
-    // YMQ SendMessage actor does after writing to the topic.
     {
         NKikimrPQ::TEvTopicSqsActionMetrics metrics;
         auto* send = metrics.MutableSendMessage();
@@ -1700,11 +1694,8 @@ void SqsMigrationMetrics(const TSqsMigrationMetricsTestParameters p) {
     }
     UNIT_ASSERT_VALUES_EQUAL_C(readCounter(sentCountName), 3, caseDescr);
     UNIT_ASSERT_VALUES_EQUAL_C(readCounter(sentBytesName), 300, caseDescr);
-
-    // No read has been reported yet, so the receive counter is still zero.
     UNIT_ASSERT_VALUES_EQUAL_C(readCounter(receivedCountName), 0, caseDescr);
 
-    // A read is reflected to the balancer as a ReceiveMessage action, like the YMQ ReceiveMessage actor.
     {
         NKikimrPQ::TEvTopicSqsActionMetrics metrics;
         auto* receive = metrics.MutableReceiveMessage();
@@ -1719,51 +1710,58 @@ void SqsMigrationMetrics(const TSqsMigrationMetricsTestParameters p) {
     const TString allCounters = ss.Str();
     Cerr << (TStringBuilder() << "\n\n" << allCounters << "\n\n");
 
-    const TVector<TStringBuf> expectedSensors = p.SqsFolderId.empty()
-        ? TVector<TStringBuf>{
-            "MessagesCount",
-            "InflyMessagesCount",
-            "SendMessage_Count",
-            "SendMessage_BytesWritten",
-            "SendMessage_Duration",
-            "SendMessage_Errors",
-            "ReceiveMessage_Count",
-            "ReceiveMessage_EmptyCount",
-            "ReceiveMessage_BytesRead",
-            "ReceiveMessage_WorkingDuration",
-            "ReceiveMessage_Errors",
-            "MessageReside_Duration",
-            "ClientMessageProcessing_Duration",
-            "MessageReceiveAttempts",
-            "OldestMessageAgeSeconds",
-            "DeleteMessage_Count",
-            "MessagesPurged",
-            "DeleteMessage_Duration",
-            "DeleteMessage_Errors",
-            "MessagesMovedToDLQ",
+    struct TExpectedSensor {
+        TStringBuf Name;
+        bool IsHistogram;
+    };
+    const TVector<TExpectedSensor> expectedSensors = p.SqsFolderId.empty()
+        ? TVector<TExpectedSensor>{
+            {"MessagesCount", false},
+            {"InflyMessagesCount", false},
+            {"SendMessage_Count", false},
+            {"SendMessage_BytesWritten", false},
+            {"SendMessage_Duration", true},
+            {"SendMessage_Errors", false},
+            {"ReceiveMessage_Count", false},
+            {"ReceiveMessage_EmptyCount", false},
+            {"ReceiveMessage_BytesRead", false},
+            {"ReceiveMessage_WorkingDuration", true},
+            {"ReceiveMessage_Errors", false},
+            {"MessageReside_Duration", true},
+            {"ClientMessageProcessing_Duration", true},
+            {"MessageReceiveAttempts", true},
+            {"OldestMessageAgeSeconds", false},
+            {"DeleteMessage_Count", false},
+            {"MessagesPurged", false},
+            {"DeleteMessage_Duration", true},
+            {"DeleteMessage_Errors", false},
+            {"MessagesMovedToDLQ", false},
         }
-        : TVector<TStringBuf>{
-            "queue.messages.sent_count_per_second",
-            "queue.messages.sent_bytes_per_second",
-            "queue.messages.received_bytes_per_second",
-            "queue.messages.received_count_per_second",
-            "queue.messages.inflight_count",
-            "queue.messages.receive_attempts_count_rate",
-            "queue.messages.empty_receive_attempts_count_per_second",
-            "queue.messages.client_processing_duration_milliseconds",
-            "queue.messages.deleted_count_per_second",
-            "queue.messages.purged_count_per_second",
-            "queue.messages.stored_count",
-            "queue.messages.oldest_age_milliseconds",
-            "queue.messages.reside_duration_milliseconds",
+        : TVector<TExpectedSensor>{
+            {"queue.messages.sent_count_per_second", false},
+            {"queue.messages.sent_bytes_per_second", false},
+            {"queue.messages.received_bytes_per_second", false},
+            {"queue.messages.received_count_per_second", false},
+            {"queue.messages.inflight_count", false},
+            {"queue.messages.receive_attempts_count_rate", true},
+            {"queue.messages.empty_receive_attempts_count_per_second", false},
+            {"queue.messages.client_processing_duration_milliseconds", true},
+            {"queue.messages.deleted_count_per_second", false},
+            {"queue.messages.purged_count_per_second", false},
+            {"queue.messages.stored_count", false},
+            {"queue.messages.oldest_age_milliseconds", false},
+            {"queue.messages.reside_duration_milliseconds", true},
         };
 
     TStringBuilder expected;
     TStringBuilder actual;
     for (const auto& sensor : expectedSensors) {
-        const bool present = allCounters.Contains(sensor);
-        expected << sensor << "=present\n";
-        actual << sensor << "=" << (present ? "present" : "absent") << "\n";
+        const TString name(sensor.Name);
+        const bool present = sensor.IsHistogram
+            ? sqsRoot->FindNamedHistogram(sensorLabel, name) != nullptr
+            : sqsRoot->FindNamedCounter(sensorLabel, name) != nullptr;
+        expected << sensor.Name << "=present\n";
+        actual << sensor.Name << "=" << (present ? "present" : "absent") << "\n";
     }
 
     UNIT_ASSERT_VALUES_EQUAL_C(TString(actual), TString(expected), caseDescr + "\n" + allCounters);
