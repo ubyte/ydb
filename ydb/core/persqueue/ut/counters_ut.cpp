@@ -1,8 +1,10 @@
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/testing/unittest/registar.h>
 #include <util/system/env.h>
+#include <ydb/core/base/counters.h>
 #include <ydb/core/base/tablet_pipecache.h>
 #include <ydb/core/mon/mon.h>
+#include <ydb/core/persqueue/events/internal.h>
 #include <ydb/core/persqueue/ut/common/pq_ut_common.h>
 #include <ydb/core/persqueue/public/counters/percentile_counter.h>
 #include <ydb/core/persqueue/pqtablet/common/constants.h>
@@ -1646,6 +1648,72 @@ void SqsMigrationMetrics(const TSqsMigrationMetricsTestParameters p) {
     }
 
     auto counters = tc.Runtime->GetAppData(0).Counters;
+
+    // Root of the SQS/YMQ queue counters, mirroring GetSqsQueueCountersRoot/GetYmqQueueCountersRoot from
+    // read_balancer__sqs_metrics.cpp.
+    const NMonitoring::TDynamicCounterPtr sqsRoot = p.SqsFolderId.empty()
+        ? NKikimr::GetServiceCounters(counters, "sqs")
+              ->GetSubgroup(TString("subsystem"), "core")
+              ->GetSubgroup(TString("user"), "foo")
+              ->GetSubgroup(TString("queue"), "bar")
+        : NKikimr::GetServiceCounters(counters, "ymq_public")
+              ->GetSubgroup(TString("cloud"), "foo")
+              ->GetSubgroup(TString("folder"), p.SqsFolderId)
+              ->GetSubgroup(TString("queue"), "bar");
+
+    const TString sensorLabel = p.SqsFolderId.empty() ? "sensor" : "name";
+    const TString sentCountName = p.SqsFolderId.empty() ? "SendMessage_Count" : "queue.messages.sent_count_per_second";
+    const TString sentBytesName = p.SqsFolderId.empty() ? "SendMessage_BytesWritten" : "queue.messages.sent_bytes_per_second";
+    const TString receivedCountName = p.SqsFolderId.empty() ? "ReceiveMessage_Count" : "queue.messages.received_count_per_second";
+
+    auto readCounter = [&](const TString& name) -> i64 {
+        auto c = sqsRoot->FindNamedCounter(sensorLabel, name);
+        return c ? c->Val() : -1;
+    };
+
+    // SendMessage/ReceiveMessage counters are populated only when the balancer receives a
+    // TEvTopicSqsActionMetrics event, which the YMQ SendMessage/ReceiveMessage actors emit after a real
+    // request. A raw CmdWrite to the partition never produces such an event, so here we reproduce what
+    // those actors do and forward the metrics to the balancer tablet.
+    auto sendSqsActionMetrics = [&](const NKikimrPQ::TEvTopicSqsActionMetrics& record) {
+        auto ev = MakeHolder<TEvPQ::TEvTopicSqsActionMetrics>();
+        ev->Record = record;
+        tc.Runtime->SendToPipe(tc.BalancerTabletId, tc.Edge, ev.Release(), 0, GetPipeConfigWithRetries());
+        TDispatchOptions options;
+        options.FinalEvents.emplace_back(TEvPQ::EvTopicSqsActionMetrics);
+        tc.Runtime->DispatchEvents(options);
+    };
+
+    // Before any SQS action is reported to the balancer, both the write and the read counters are zero.
+    UNIT_ASSERT_VALUES_EQUAL_C(readCounter(sentCountName), 0, caseDescr);
+    UNIT_ASSERT_VALUES_EQUAL_C(readCounter(sentBytesName), 0, caseDescr);
+    UNIT_ASSERT_VALUES_EQUAL_C(readCounter(receivedCountName), 0, caseDescr);
+
+    // The three CmdWrite calls above are reflected to the balancer as a SendMessage action, exactly like the
+    // YMQ SendMessage actor does after writing to the topic.
+    {
+        NKikimrPQ::TEvTopicSqsActionMetrics metrics;
+        auto* send = metrics.MutableSendMessage();
+        send->SetSendMessageCount(3);
+        send->SetBytesWritten(300);
+        sendSqsActionMetrics(metrics);
+    }
+    UNIT_ASSERT_VALUES_EQUAL_C(readCounter(sentCountName), 3, caseDescr);
+    UNIT_ASSERT_VALUES_EQUAL_C(readCounter(sentBytesName), 300, caseDescr);
+
+    // No read has been reported yet, so the receive counter is still zero.
+    UNIT_ASSERT_VALUES_EQUAL_C(readCounter(receivedCountName), 0, caseDescr);
+
+    // A read is reflected to the balancer as a ReceiveMessage action, like the YMQ ReceiveMessage actor.
+    {
+        NKikimrPQ::TEvTopicSqsActionMetrics metrics;
+        auto* receive = metrics.MutableReceiveMessage();
+        receive->SetReceiveMessageCount(2);
+        receive->SetReceiveMessageBytesRead(200);
+        sendSqsActionMetrics(metrics);
+    }
+    UNIT_ASSERT_VALUES_EQUAL_C(readCounter(receivedCountName), 2, caseDescr);
+
     TStringStream ss;
     counters->OutputHtml(ss);
     const TString allCounters = ss.Str();
