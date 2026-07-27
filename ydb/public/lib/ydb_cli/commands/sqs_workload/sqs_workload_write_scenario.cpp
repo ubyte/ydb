@@ -42,6 +42,7 @@ namespace NYdb::NConsoleClient {
             .GroupsAmount = GroupsAmount,
             .GroupsPrefix = GroupsPrefix,
             .MessageSize = MessageSize,
+            .MessagesPerSec = MessagesPerSec,
         };
 
         auto f = std::async([&params, finishedFlag]() {

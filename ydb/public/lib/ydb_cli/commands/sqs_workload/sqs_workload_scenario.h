@@ -35,6 +35,7 @@ namespace NYdb::NConsoleClient {
         ui64 MaxUniqueMessages;
         ui32 BatchSize;
         ui32 MessageSize;
+        TMaybe<double> MessagesPerSec;
         i32 GroupsAmount;
         TString GroupsPrefix;
         ui32 WorkersCount;

@@ -89,6 +89,8 @@ namespace NYdb::NConsoleClient {
         config.Opts->AddLongOption("max-unique-messages", "Max unique messages. If set to 0, content based deduplication is used.")
             .DefaultValue(0)
             .StoreResult(&Scenario.MaxUniqueMessages);
+        config.Opts->AddLongOption("message-rate", "Limit message rate for all workers (messages per second)")
+            .StoreResult(&Scenario.MessagesPerSec);
     }
 
     void TCommandWorkloadSqsRunWrite::Parse(TConfig& config) {

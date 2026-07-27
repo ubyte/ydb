@@ -85,7 +85,16 @@ namespace NYdb::NConsoleClient {
             };
         }
 
+        const TInstant startTime = Now();
+        ui64 messagesDispatched = 0;
+
         while (Now() < endTime && !params.ErrorFlag->load()) {
+            if (params.MessagesPerSec.Defined()) {
+                const TInstant expectedTime = startTime + TDuration::Seconds(messagesDispatched / *params.MessagesPerSec);
+                SleepUntil(expectedTime);
+                messagesDispatched += params.BatchSize;
+            }
+
             Aws::SQS::Model::SendMessageBatchRequest sendMessageBatchRequest;
             sendMessageBatchRequest.SetQueueUrl(params.QueueUrl.c_str());
             sendMessageBatchRequest.SetEntries(CreateSendMessageBatchRequestEntries(params, genMessageGroupID, messageDeduplicationDistribution(rng)));
