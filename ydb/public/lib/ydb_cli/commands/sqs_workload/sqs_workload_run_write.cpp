@@ -66,6 +66,9 @@ namespace NYdb::NConsoleClient {
         config.Opts->AddLongOption('g', "message-groups-amount", "Message groups amount.")
             .DefaultValue(0)
             .StoreResult(&Scenario.GroupsAmount);
+     config.Opts->AddLongOption("message-groups-prefix", "Message groups prefix.")
+            .Optional()
+            .StoreResult(&Scenario.GroupsPrefix);
         config.Opts
             ->AddLongOption('p', "percentile", "Percentile for output statistics.")
             .DefaultValue(80.0)
