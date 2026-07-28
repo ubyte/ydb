@@ -91,6 +91,8 @@ namespace NYdb::NConsoleClient {
             .StoreResult(&Scenario.MaxUniqueMessages);
         config.Opts->AddLongOption("message-rate", "Limit message rate for all workers (messages per second)")
             .StoreResult(&Scenario.MessagesPerSec);
+        config.Opts->AddLongOption("message-count", "Limit number of messages")
+            .StoreResult(&Scenario.MessageCount);
     }
 
     void TCommandWorkloadSqsRunWrite::Parse(TConfig& config) {

@@ -29,6 +29,7 @@ namespace NYdb::NConsoleClient {
         TString GroupsPrefix;
         ui32 MessageSize;
         TMaybe<double> MessagesPerSec;
+        TMaybe<ui64> MessageCount;
     };
 
     class TSqsWorkloadWriter {

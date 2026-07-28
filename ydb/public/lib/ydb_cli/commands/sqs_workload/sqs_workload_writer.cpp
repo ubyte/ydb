@@ -89,11 +89,16 @@ namespace NYdb::NConsoleClient {
         ui64 messagesDispatched = 0;
 
         while (Now() < endTime && !params.ErrorFlag->load()) {
+            if (params.MessageCount.Defined()) {
+                if (messagesDispatched >= *params.MessageCount) {
+                    break;
+                }
+            }
             if (params.MessagesPerSec.Defined()) {
                 const TInstant expectedTime = startTime + TDuration::Seconds(messagesDispatched / *params.MessagesPerSec);
                 SleepUntil(expectedTime);
-                messagesDispatched += params.BatchSize;
             }
+            messagesDispatched += params.BatchSize;
 
             Aws::SQS::Model::SendMessageBatchRequest sendMessageBatchRequest;
             sendMessageBatchRequest.SetQueueUrl(params.QueueUrl.c_str());
