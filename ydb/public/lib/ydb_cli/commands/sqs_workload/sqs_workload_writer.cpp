@@ -31,7 +31,6 @@ namespace NYdb::NConsoleClient {
                 if (auto messageGroupId = genMessageGroupID()) {
                     entry.WithMessageGroupId(fmt::format("{}", *messageGroupId));
                 }
-
                 if (params.MaxUniqueMessages > 0) {
                     entry.WithMessageDeduplicationId(std::format("{}", messageDeduplicationID));
                 }
@@ -39,6 +38,16 @@ namespace NYdb::NConsoleClient {
                 entries.push_back(std::move(entry));
             }
             return entries;
+        }
+
+
+        template <class T>
+        T IncWrap(T& value, const T& max) {
+            T res = value;
+            if (++value >= max) {
+                value = 0;
+            }
+            return res;
         }
 
     } // namespace
@@ -72,17 +81,31 @@ namespace NYdb::NConsoleClient {
         std::uniform_int_distribution<ui32> messageGroupsDistribution(0, params.GroupsAmount - 1);
         std::uniform_int_distribution<ui32> messageDeduplicationDistribution(0, params.MaxUniqueMessages - 1);
 
-        std::function<std::optional<std::string>()> genMessageGroupID = [](){ return std::nullopt; };
-        if (params.GroupsAmount > 0) {
-            genMessageGroupID = [&]()-> std::optional<std::string> { return fmt::format("{}_{}", params.GroupsPrefix, messageGroupsDistribution(rng)); };
-        } else if (params.GroupsAmount < 0) {
-            genMessageGroupID = [c = i32(0), &params]() mutable -> std::optional<std::string> {
+        auto getMessageGroupTail = [&, c = i32(0)]()  mutable-> std::string {
+            if (params.GroupsAmount > 0) {
+                return fmt::format("{}", messageGroupsDistribution(rng));
+            }
+            if (params.GroupsAmount < 0) {
                 int pc = c;
                 if (++c >= -params.GroupsAmount) {
                     c = 0;
                 }
-                return fmt::format("{}_{}", params.GroupsPrefix, pc);
+                return fmt::format("{}", pc);
             };
+            return "";
+        };
+
+        std::function<std::optional<std::string>()> genMessageGroupID = [](){ return std::nullopt; };
+        if (params.GroupsAmount != 0) {
+            auto generator = [&, clientId = 0, clientSubdiv = 0]() mutable -> std::optional<std::string> {
+                auto c = IncWrap(clientId, params.GroupClientAmount);
+                if (clientId == 0) {
+                    IncWrap(clientSubdiv, params.GroupClientSubdivide);
+                }
+                auto cs = clientSubdiv;
+                return fmt::format("{}_c{}_sub{}_g{}", params.GroupsPrefix.ConstRef(), c, cs, getMessageGroupTail());
+            };
+            genMessageGroupID = generator;
         }
 
         const TInstant startTime = Now();

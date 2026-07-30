@@ -41,6 +41,8 @@ namespace NYdb::NConsoleClient {
             .WorkersCount = WorkersCount,
             .GroupsAmount = GroupsAmount,
             .GroupsPrefix = GroupsPrefix,
+            .GroupClientAmount = GroupClientAmount,
+            .GroupClientSubdivide = GroupClientSubdivide,
             .MessageSize = MessageSize,
             .MessagesPerSec = MessagesPerSec,
             .MessageCount = MessageCount,

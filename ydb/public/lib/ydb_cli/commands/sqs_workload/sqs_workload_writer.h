@@ -27,6 +27,9 @@ namespace NYdb::NConsoleClient {
         ui32 WorkersCount;
         i32 GroupsAmount;
         TString GroupsPrefix;
+        i32 GroupClientAmount;
+        i32 GroupClientSubdivide;
+
         ui32 MessageSize;
         TMaybe<double> MessagesPerSec;
         TMaybe<ui64> MessageCount;

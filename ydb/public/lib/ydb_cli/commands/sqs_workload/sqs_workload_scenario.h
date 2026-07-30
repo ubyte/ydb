@@ -39,6 +39,9 @@ namespace NYdb::NConsoleClient {
         TMaybe<ui64> MessageCount;
         i32 GroupsAmount;
         TString GroupsPrefix;
+        i32 GroupClientAmount;
+        i32 GroupClientSubdivide;
+
         ui32 WorkersCount;
         ui32 RequestTimeoutMs;
         bool UseXmlAPI;
