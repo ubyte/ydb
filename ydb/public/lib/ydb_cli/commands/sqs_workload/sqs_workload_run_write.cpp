@@ -77,6 +77,10 @@ namespace NYdb::NConsoleClient {
             .Optional()
             .DefaultValue(1)
             .StoreResult(&Scenario.GroupClientSubdivide);
+        config.Opts->AddLongOption("tasks-per-add", "Number of consecutive tasks emitted for the same client and clientSubdiv.")
+            .Optional()
+            .DefaultValue(1)
+            .StoreResult(&Scenario.TasksPerAdd);
 
         config.Opts
             ->AddLongOption('p', "percentile", "Percentile for output statistics.")
