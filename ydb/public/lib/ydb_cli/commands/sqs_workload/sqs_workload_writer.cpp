@@ -97,11 +97,13 @@ namespace NYdb::NConsoleClient {
 
         std::function<std::optional<std::string>()> genMessageGroupID = [](){ return std::nullopt; };
         if (params.GroupsAmount != 0) {
-            auto generator = [&, clientId = 0, clientSubdiv = 0, taskInAdd = ui32(0)]() mutable -> std::optional<std::string> {
+            std::uniform_int_distribution<ui32> tasksPerAddDistribution(1, params.TasksPerAdd);
+            auto generator = [&, clientId = 0, clientSubdiv = 0, taskInAdd = ui32(0), tasksInAdd = tasksPerAddDistribution(rng)]() mutable -> std::optional<std::string> {
                 auto c = clientId;
                 auto cs = clientSubdiv;
-                if (++taskInAdd >= params.TasksPerAdd) {
+                if (++taskInAdd >= tasksInAdd) {
                     taskInAdd = 0;
+                    tasksInAdd = tasksPerAddDistribution(rng);
                     IncWrap(clientId, params.GroupClientAmount);
                     if (clientId == 0) {
                         IncWrap(clientSubdiv, params.GroupClientSubdivide);
