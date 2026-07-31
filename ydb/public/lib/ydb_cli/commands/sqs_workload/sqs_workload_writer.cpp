@@ -51,6 +51,70 @@ namespace NYdb::NConsoleClient {
             return res;
         }
 
+        class TMessageGroupIdGenerator {
+        public:
+            explicit TMessageGroupIdGenerator(const TSqsWorkloadWriterParams& params, std::mt19937_64& rng)
+                : GroupsPrefix(params.GroupsPrefix)
+                , GroupsAmount(params.GroupsAmount)
+                , GroupClientAmount(params.GroupClientAmount)
+                , GroupClientSubdivide(params.GroupClientSubdivide)
+                , TasksPerAdd(params.TasksPerAdd)
+                , MessageGroupsDistribution(0, params.GroupsAmount - 1)
+                , ClientIdDistribution(0, params.GroupClientAmount - 1)
+                , TasksPerAddDistribution(1, params.TasksPerAdd)
+                , ClientId(ClientIdDistribution(rng))
+                , TasksInAdd(TasksPerAddDistribution(rng))
+            {
+                Y_ENSURE(params.TasksPerAdd >= 1);
+                //Cerr << LabeledOutput(params.TasksPerAdd, params.GroupClientAmount,  params.GroupClientSubdivide) << "\n";
+
+            }
+
+            std::optional<std::string> Next(std::mt19937_64& rng) {
+                auto c = ClientId;
+                auto cs = ClientSubdiv;
+                if (++TaskInAdd >= TasksInAdd) {
+                    TaskInAdd = 0;
+                    TasksInAdd = TasksPerAddDistribution(rng);
+                    Y_ENSURE(TasksInAdd >= 1, LabeledOutput(TasksInAdd, TasksPerAdd));
+                    Y_ENSURE(TasksInAdd <= TasksPerAdd, LabeledOutput(TasksInAdd, TasksPerAdd));
+                    IncWrap(ClientId, GroupClientAmount);
+                    if (ClientId == 0) {
+                        IncWrap(ClientSubdiv, GroupClientSubdivide);
+                    }
+                }
+                //Cerr << LabeledOutput(TasksInAdd, TaskInAdd, ClientId, ClientSubdiv) << "\n";
+                return fmt::format("{}_c{}_sub{}_g{}", GroupsPrefix, c, cs, GetMessageGroupTail(rng));
+            }
+
+        private:
+            std::string GetMessageGroupTail(std::mt19937_64& rng) {
+                if (GroupsAmount > 0) {
+                    return fmt::format("{}", MessageGroupsDistribution(rng));
+                }
+                if (GroupsAmount < 0) {
+                    return fmt::format("{}", IncWrap(TailCounter, -GroupsAmount));
+                }
+                return "";
+            }
+
+            const TString GroupsPrefix;
+            const i32 GroupsAmount;
+            const i32 GroupClientAmount;
+            const i32 GroupClientSubdivide;
+            const i32 TasksPerAdd;
+
+            std::uniform_int_distribution<ui32> MessageGroupsDistribution;
+            std::uniform_int_distribution<i32> ClientIdDistribution;
+            std::uniform_int_distribution<i32> TasksPerAddDistribution;
+
+            i32 ClientId;
+            i32 ClientSubdiv = 0;
+            i32 TaskInAdd = 0;
+            i32 TasksInAdd;
+            i32 TailCounter = 0;
+        };
+
     } // namespace
 
     void TSqsWorkloadWriter::OnMessageSent(
@@ -79,45 +143,11 @@ namespace NYdb::NConsoleClient {
     void TSqsWorkloadWriter::RunLoop(const TSqsWorkloadWriterParams& params,
                                      TInstant endTime) {
         std::mt19937_64 rng(std::random_device{}());
-        std::uniform_int_distribution<ui32> messageGroupsDistribution(0, params.GroupsAmount - 1);
         std::uniform_int_distribution<ui32> messageDeduplicationDistribution(0, params.MaxUniqueMessages - 1);
-        std::uniform_int_distribution<i32> clientIdDistribution(0, params.GroupClientAmount - 1);
-
-        auto getMessageGroupTail = [&, c = i32(0)]()  mutable-> std::string {
-            if (params.GroupsAmount > 0) {
-                return fmt::format("{}", messageGroupsDistribution(rng));
-            }
-            if (params.GroupsAmount < 0) {
-                int pc = c;
-                if (++c >= -params.GroupsAmount) {
-                    c = 0;
-                }
-                return fmt::format("{}", pc);
-            };
-            return "";
-        };
 
         std::function<std::optional<std::string>()> genMessageGroupID = [](){ return std::nullopt; };
         if (params.GroupsAmount != 0) {
-            Y_ENSURE(params.TasksPerAdd >= 1);
-            std::uniform_int_distribution<i32> tasksPerAddDistribution(1, params.TasksPerAdd);
-            Cerr << LabeledOutput(params.TasksPerAdd, params.GroupClientAmount,  params.GroupClientSubdivide) << "\n";
-
-            auto generator = [&, clientId = clientIdDistribution(rng), clientSubdiv = 0, taskInAdd = i32(0), tasksInAdd = tasksPerAddDistribution(rng)]() mutable -> std::optional<std::string> {
-                auto c = clientId;
-                auto cs = clientSubdiv;
-                if (++taskInAdd >= tasksInAdd) {
-                    taskInAdd = 0;
-                    tasksInAdd = tasksPerAddDistribution(rng);
-                    IncWrap(clientId, params.GroupClientAmount);
-                    if (clientId == 0) {
-                        IncWrap(clientSubdiv, params.GroupClientSubdivide);
-                    }
-                }
-                //  Cerr << LabeledOutput(tasksInAdd, taskInAdd, clientId, clientSubdiv) << "\n";
-                return fmt::format("{}_c{}_sub{}_g{}", params.GroupsPrefix.ConstRef(), c, cs, getMessageGroupTail());
-            };
-            genMessageGroupID = generator;
+            genMessageGroupID = [&rng, generator = TMessageGroupIdGenerator(params, rng)]() mutable { return generator.Next(rng); };
         }
 
         const TInstant startTime = Now();
