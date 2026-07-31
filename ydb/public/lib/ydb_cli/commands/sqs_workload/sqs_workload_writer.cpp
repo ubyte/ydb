@@ -81,6 +81,7 @@ namespace NYdb::NConsoleClient {
         std::mt19937_64 rng(std::random_device{}());
         std::uniform_int_distribution<ui32> messageGroupsDistribution(0, params.GroupsAmount - 1);
         std::uniform_int_distribution<ui32> messageDeduplicationDistribution(0, params.MaxUniqueMessages - 1);
+        std::uniform_int_distribution<i32> clientIdDistribution(0, params.GroupClientAmount - 1);
 
         auto getMessageGroupTail = [&, c = i32(0)]()  mutable-> std::string {
             if (params.GroupsAmount > 0) {
@@ -99,7 +100,7 @@ namespace NYdb::NConsoleClient {
         std::function<std::optional<std::string>()> genMessageGroupID = [](){ return std::nullopt; };
         if (params.GroupsAmount != 0) {
             std::uniform_int_distribution<ui32> tasksPerAddDistribution(1, params.TasksPerAdd);
-            auto generator = [&, clientId = 0, clientSubdiv = 0, taskInAdd = ui32(0), tasksInAdd = tasksPerAddDistribution(rng)]() mutable -> std::optional<std::string> {
+            auto generator = [&, clientId = clientIdDistribution(rng), clientSubdiv = 0, taskInAdd = ui32(0), tasksInAdd = tasksPerAddDistribution(rng)]() mutable -> std::optional<std::string> {
                 auto c = clientId;
                 auto cs = clientSubdiv;
                 if (++taskInAdd >= tasksInAdd) {
