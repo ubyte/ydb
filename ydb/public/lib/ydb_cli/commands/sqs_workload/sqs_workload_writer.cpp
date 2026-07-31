@@ -16,9 +16,10 @@ namespace NYdb::NConsoleClient {
     namespace {
 
         void DecrementStartedCountAndNotify(const TSqsWorkloadWriterParams& params) {
-            std::unique_lock locker(*params.Mutex);
+            //std::unique_lock locker(*params.Mutex);
             --(*params.StartedCount);
-            params.FinishedCond->notify_all();
+            //params.FinishedCond->notify_all();
+            params.FinishedCond->notify_one();
         }
 
         Aws::Vector<Aws::SQS::Model::SendMessageBatchRequestEntry>
@@ -138,9 +139,7 @@ namespace NYdb::NConsoleClient {
             {
                 std::unique_lock locker(*params.Mutex);
                 // WorkersCount tasks are running in parallel and also WorkersCount tasks are waiting in executor queue
-                while (*params.StartedCount >= params.WorkersCount * 2) {
-                    params.FinishedCond->wait(locker);
-                }
+                params.FinishedCond->wait(locker, [&params]() { return *params.StartedCount < params.WorkersCount * 2; });
 
                 ++(*params.StartedCount);
             }

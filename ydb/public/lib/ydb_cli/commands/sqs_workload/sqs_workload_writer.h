@@ -18,7 +18,7 @@ namespace NYdb::NConsoleClient {
         std::shared_ptr<TLog> Log;
         std::shared_ptr<std::mutex> Mutex;
         std::shared_ptr<std::condition_variable> FinishedCond;
-        std::shared_ptr<size_t> StartedCount;
+        std::shared_ptr<std::atomic<size_t>> StartedCount;
         std::shared_ptr<std::atomic_bool> ErrorFlag;
         std::shared_ptr<Aws::SQS::SQSClient> SqsClient;
         std::shared_ptr<TSqsWorkloadStatsCollector> StatsCollector;

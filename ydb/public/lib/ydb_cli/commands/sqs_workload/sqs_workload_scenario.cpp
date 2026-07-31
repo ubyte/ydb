@@ -28,7 +28,7 @@ namespace NYdb::NConsoleClient {
         AwsOptions(),
         Mutex(std::make_shared<std::mutex>()),
         FinishedCond(std::make_shared<std::condition_variable>()),
-        StartedCount(std::make_shared<size_t>(0))
+        StartedCount(std::make_shared<std::atomic<size_t>>(0))
     {
         Log->SetFormatter(GetPrefixLogFormatter(""));
     }
