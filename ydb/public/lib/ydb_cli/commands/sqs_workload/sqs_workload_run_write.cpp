@@ -61,7 +61,7 @@ namespace NYdb::NConsoleClient {
             .DefaultValue(1)
             .StoreResult(&Scenario.BatchSize);
         config.Opts->AddLongOption('m', "message-size", "AWS message size.")
-            .DefaultValue(900)
+            .DefaultValue(80)
             .StoreResult(&Scenario.MessageSize);
         config.Opts->AddLongOption('g', "message-groups-amount", "Message groups amount.")
             .DefaultValue(0)

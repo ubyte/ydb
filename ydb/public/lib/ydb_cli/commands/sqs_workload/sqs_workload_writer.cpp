@@ -99,8 +99,11 @@ namespace NYdb::NConsoleClient {
 
         std::function<std::optional<std::string>()> genMessageGroupID = [](){ return std::nullopt; };
         if (params.GroupsAmount != 0) {
-            std::uniform_int_distribution<ui32> tasksPerAddDistribution(1, params.TasksPerAdd);
-            auto generator = [&, clientId = clientIdDistribution(rng), clientSubdiv = 0, taskInAdd = ui32(0), tasksInAdd = tasksPerAddDistribution(rng)]() mutable -> std::optional<std::string> {
+            Y_ENSURE(params.TasksPerAdd >= 1);
+            std::uniform_int_distribution<i32> tasksPerAddDistribution(1, params.TasksPerAdd);
+            Cerr << LabeledOutput(params.TasksPerAdd, params.GroupClientAmount,  params.GroupClientSubdivide) << "\n";
+
+            auto generator = [&, clientId = clientIdDistribution(rng), clientSubdiv = 0, taskInAdd = i32(0), tasksInAdd = tasksPerAddDistribution(rng)]() mutable -> std::optional<std::string> {
                 auto c = clientId;
                 auto cs = clientSubdiv;
                 if (++taskInAdd >= tasksInAdd) {
@@ -111,6 +114,7 @@ namespace NYdb::NConsoleClient {
                         IncWrap(clientSubdiv, params.GroupClientSubdivide);
                     }
                 }
+                //  Cerr << LabeledOutput(tasksInAdd, taskInAdd, clientId, clientSubdiv) << "\n";
                 return fmt::format("{}_c{}_sub{}_g{}", params.GroupsPrefix.ConstRef(), c, cs, getMessageGroupTail());
             };
             genMessageGroupID = generator;
