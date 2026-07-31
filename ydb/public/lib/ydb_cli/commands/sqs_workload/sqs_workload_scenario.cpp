@@ -36,7 +36,7 @@ namespace NYdb::NConsoleClient {
     TSqsWorkloadScenario::~TSqsWorkloadScenario() {}
 
     void TSqsWorkloadScenario::InitAwsSdk() {
-        AwsOptions.loggingOptions.logLevel = Aws::Utils::Logging::LogLevel::Off;
+        AwsOptions.loggingOptions.logLevel = Aws::Utils::Logging::LogLevel::Fatal;
         Aws::InitAPI(AwsOptions);
     }
 
