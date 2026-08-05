@@ -8,7 +8,7 @@ namespace NKikimr::NSQS {
 namespace TLimits {
     static constexpr size_t MinBatchSize = 1;
 
-    static constexpr size_t MaxBatchSize = 10;
+    static constexpr size_t MaxBatchSize = 100;
 
     static constexpr size_t MaxDelaySeconds = 900;
 
