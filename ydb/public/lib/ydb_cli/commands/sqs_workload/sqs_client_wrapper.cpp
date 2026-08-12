@@ -2,7 +2,11 @@
 #include "consts.h"
 #include "utils.h"
 
+#include <ydb/services/sqs_topic/protos/receipt/receipt.pb.h>
+
 #include <aws/sqs/model/SendMessageBatchRequest.h>
+
+#include <library/cpp/string_utils/base64/base64.h>
 #include <util/datetime/base.h>
 
 #include <fmt/format.h>
@@ -68,6 +72,32 @@ namespace NYdb::NConsoleClient {
         }
     }
 
+    struct TParitionInfo {
+        ui32 Parition;
+        ui64 Offset;
+    };
+
+    static TMaybe<TParitionInfo> PartitionInfoFromHandle(const TStringBuf handle) {
+        TString holder;
+        std::array<char, 64> h;
+        TStringBuf proto;
+        try {
+            if (h.size() <= Base64DecodeBufSize(handle.size())) {
+                proto = Base64StrictDecode(handle, h.data());
+            } else {
+                Base64StrictDecode(handle, holder);
+                proto = holder;
+            }
+        } catch (...) {
+            return Nothing();
+        }
+        Ydb::SqsTopic::Receipt::TReceipt receipt;
+        if (!receipt.ParseFromString(proto)) {
+            return Nothing();
+        }
+        return TParitionInfo{receipt.GetPartition(), receipt.GetOffset()};
+    }
+
     Aws::SQS::Model::ReceiveMessageOutcome TSQSClientWrapper::ReceiveMessage(const Aws::SQS::Model::ReceiveMessageRequest& request) const {
         auto response = Client->ReceiveMessage(request);
         auto now = TInstant::Now().MilliSeconds();
@@ -125,10 +155,15 @@ namespace NYdb::NConsoleClient {
                     }
                 };
 
+                const TMaybe partitionInfo = PartitionInfoFromHandle(message.GetReceiptHandle());
+
                 messageGroupsStream << get(Aws::SQS::Model::MessageSystemAttributeName::MessageGroupId) << '\t';
                 messageGroupsStream << get(Aws::SQS::Model::MessageSystemAttributeName::SenderId) << '\t';
                 messageGroupsStream << get(Aws::SQS::Model::MessageSystemAttributeName::SentTimestamp) << '\t';
-                messageGroupsStream << ts.MilliSeconds() << '\n';
+                messageGroupsStream << ts.MilliSeconds() << '\t';
+                messageGroupsStream << partitionInfo.Transform(std::mem_fn(&TParitionInfo::Parition)).Cast<i32>().GetOrElse(-1) << '\t';
+                messageGroupsStream << partitionInfo.Transform(std::mem_fn(&TParitionInfo::Offset)).Cast<i32>().GetOrElse(-1);
+                messageGroupsStream << '\n';
             }
         }
         if (lock.owns_lock()) {
