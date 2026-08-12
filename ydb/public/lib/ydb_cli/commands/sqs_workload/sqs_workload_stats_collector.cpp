@@ -1,5 +1,7 @@
 #include "sqs_workload_stats_collector.h"
 
+#include <util/generic/scope.h>
+
 #include <fmt/format.h>
 
 using namespace NYdb::NConsoleClient;
@@ -162,6 +164,10 @@ void TSqsWorkloadStatsCollector::PrintStats(TMaybe<ui32> windowIt) const {
     if (Quiet && windowIt.Defined()) {
         return;
     }
+    TStringStream stream;
+    Y_DEFER{
+        Cout << stream.Str();
+    };
 
     const auto& stats = windowIt.Empty() ? TotalStats : *WindowStats;
     double seconds = windowIt.Empty() ? TotalSec - WarmupSec : WindowSec;
@@ -176,14 +182,14 @@ void TSqsWorkloadStatsCollector::PrintStats(TMaybe<ui32> windowIt) const {
             (i64)stats.SendRequestTimeHist.GetValueAtPercentile(Percentile);
         const auto mbStr = fmt::format("{:.3f}", writeMbPerSec);
 
-        Cout << fmt::format("{:<6} {:>10} {:>10} {:>8} {:>10} {:>10} {:>12}",
+        stream << fmt::format("{:<6} {:>10} {:>10} {:>8} {:>10} {:>10} {:>12}",
                             totalIt, writeSpeed, mbStr, sendMs,
                             stats.SendRequestErrors, stats.SendRequestsSuccess,
                             stats.AsyncRequestTasks);
         if (PrintTimestamp) {
-            Cout << " " << Now().ToStringUpToSeconds();
+            stream << " " << Now().ToStringUpToSeconds();
         }
-        Cout << Endl;
+        stream << Endl;
         return;
     }
 
@@ -202,7 +208,7 @@ void TSqsWorkloadStatsCollector::PrintStats(TMaybe<ui32> windowIt) const {
         const auto delSpeed = (int)(stats.DeleteMessages / seconds);
         const auto mbStr = fmt::format("{:.3f}", readMbPerSec);
 
-        Cout << fmt::format(
+        stream << fmt::format(
             "{:<6} {:>10} {:>10} {:>10} {:>8} {:>8} {:>10} {:>10} {:>10} "
             "{:>10} "
             "{:>10} {:>10} {:>10} {:>12}", totalIt, readSpeed, mbStr, e2eMs, recvMs,
@@ -210,9 +216,9 @@ void TSqsWorkloadStatsCollector::PrintStats(TMaybe<ui32> windowIt) const {
             stats.DeleteRequestErrors, stats.DeleteRequestsSuccess, delSpeed,
             inFlight, stats.ErrorsWhileProcessingMessages, stats.AsyncRequestTasks);
         if (PrintTimestamp) {
-            Cout << " " << Now().ToStringUpToSeconds();
+            stream << " " << Now().ToStringUpToSeconds();
         }
-        Cout << Endl;
+        stream << Endl;
         return;
     }
 }
