@@ -77,7 +77,7 @@ namespace NYdb::NConsoleClient {
             .Optional()
             .DefaultValue(1)
             .StoreResult(&Scenario.GroupClientSubdivide);
-        config.Opts->AddLongOption("tasks-per-add", "Number of consecutive tasks emitted for the same client and clientSubdiv.")
+        config.Opts->AddLongOption("tasks-per-add", "Number of consecutive tasks emitted for the same client and clientSubdiv (negative=strict count; positive=randomized)")
             .Optional()
             .DefaultValue(1)
             .StoreResult(&Scenario.TasksPerAdd);

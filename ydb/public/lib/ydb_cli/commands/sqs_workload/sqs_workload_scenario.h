@@ -41,7 +41,7 @@ namespace NYdb::NConsoleClient {
         TString GroupsPrefix;
         i32 GroupClientAmount;
         i32 GroupClientSubdivide;
-        ui32 TasksPerAdd;
+        i32 TasksPerAdd;
 
         ui32 WorkersCount;
         ui32 RequestTimeoutMs;

@@ -61,11 +61,11 @@ namespace NYdb::NConsoleClient {
                 , TasksPerAdd(params.TasksPerAdd)
                 , MessageGroupsDistribution(0, params.GroupsAmount - 1)
                 , ClientIdDistribution(0, params.GroupClientAmount - 1)
-                , TasksPerAddDistribution(1, params.TasksPerAdd)
+                , TasksPerAddDistribution(1, Max<i32>(1, params.TasksPerAdd))
                 , ClientId(ClientIdDistribution(rng))
-                , TasksInAdd(TasksPerAddDistribution(rng))
+                , TasksInAdd(0)
             {
-                Y_ENSURE(params.TasksPerAdd >= 1);
+                Y_ENSURE(params.TasksPerAdd != 0);
                 //Cerr << LabeledOutput(params.TasksPerAdd, params.GroupClientAmount,  params.GroupClientSubdivide) << "\n";
 
             }
@@ -75,9 +75,13 @@ namespace NYdb::NConsoleClient {
                 auto cs = ClientSubdiv;
                 if (++TaskInAdd >= TasksInAdd) {
                     TaskInAdd = 0;
-                    TasksInAdd = TasksPerAddDistribution(rng);
+                    TasksInAdd = (TasksPerAdd >= 0) ? TasksPerAddDistribution(rng) : -TasksPerAdd;
                     Y_ENSURE(TasksInAdd >= 1, LabeledOutput(TasksInAdd, TasksPerAdd));
-                    Y_ENSURE(TasksInAdd <= TasksPerAdd, LabeledOutput(TasksInAdd, TasksPerAdd));
+                    if (TasksPerAdd >= 0) {
+                        Y_ENSURE(TasksInAdd <= TasksPerAdd, LabeledOutput(TasksInAdd, TasksPerAdd));
+                    } else {
+                        Y_ENSURE(TasksInAdd <= -TasksPerAdd, LabeledOutput(TasksInAdd, TasksPerAdd));
+                    }
                     IncWrap(ClientId, GroupClientAmount);
                     if (ClientId == 0) {
                         IncWrap(ClientSubdiv, GroupClientSubdivide);
