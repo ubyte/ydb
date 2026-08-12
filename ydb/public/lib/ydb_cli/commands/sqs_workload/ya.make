@@ -38,9 +38,11 @@ PEERDIR(
     ydb/public/sdk/cpp/src/client/types/status
     ydb/public/lib/ydb_cli/commands/sqs_workload/sqs_json
     library/cpp/containers/concurrent_hash
+    library/cpp/string_utils/base64
     library/cpp/unified_agent_client
     library/cpp/histogram/hdr
     contrib/libs/fmt
+    ydb/services/sqs_topic/protos/receipt
 )
 
 END()

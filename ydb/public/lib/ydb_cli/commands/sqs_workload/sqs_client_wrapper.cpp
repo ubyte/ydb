@@ -162,7 +162,7 @@ namespace NYdb::NConsoleClient {
                 messageGroupsStream << get(Aws::SQS::Model::MessageSystemAttributeName::SentTimestamp) << '\t';
                 messageGroupsStream << ts.MilliSeconds() << '\t';
                 messageGroupsStream << partitionInfo.Transform(std::mem_fn(&TParitionInfo::Parition)).Cast<i32>().GetOrElse(-1) << '\t';
-                messageGroupsStream << partitionInfo.Transform(std::mem_fn(&TParitionInfo::Offset)).Cast<i32>().GetOrElse(-1);
+                messageGroupsStream << partitionInfo.Transform(std::mem_fn(&TParitionInfo::Offset)).Cast<i64>().GetOrElse(-1);
                 messageGroupsStream << '\n';
             }
         }
