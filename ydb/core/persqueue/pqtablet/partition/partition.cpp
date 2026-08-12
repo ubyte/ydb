@@ -4172,13 +4172,13 @@ void TPartition::EndChangePartitionConfig(NKikimrPQ::TPQTabletConfig&& config,
         OffloadActor = {};
     }
 
-    if (MonitoringProjectId != Config.GetMonitoringProjectId()) {
+    if (MonitoringProjectId != GetMonitoringProjectId(Config)) {
         UsersInfoStorage->ResetDetailedMetrics();
         ResetDetailedMetrics();
     } else if (!DetailedMetricsAreEnabled(Config)) {
         ResetDetailedMetrics();
     }
-    MonitoringProjectId = Config.GetMonitoringProjectId();
+    MonitoringProjectId = GetMonitoringProjectId(Config);
     SetupDetailedMetrics();
     UsersInfoStorage->SetupDetailedMetrics(ActorContext());
 }

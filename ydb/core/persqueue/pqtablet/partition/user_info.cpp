@@ -1,4 +1,5 @@
 #include "user_info.h"
+#include "partition.h"
 
 #include <ydb/core/persqueue/common/percentiles.h>
 #include <ydb/core/persqueue/pqtablet/common/constants.h>
@@ -450,9 +451,9 @@ TUserInfo& TUsersInfoStorage::GetOrCreate(const TString& user, const TActorConte
 
 TUsersInfoStorage::TDetailedCounterSubgroup TUsersInfoStorage::GetPartitionCounterSubgroup(const TActorContext& ctx) const {
     if (!DetailedMetricsAreEnabled(Config)) {
-        return {nullptr, Config.GetMonitoringProjectId()};
+        return {nullptr, GetMonitoringProjectId(Config)};
     }
-    return GetPartitionCounterSubgroupImpl(ctx, Config.GetMonitoringProjectId());
+    return GetPartitionCounterSubgroupImpl(ctx, GetMonitoringProjectId(Config));
 }
 
 TUsersInfoStorage::TDetailedCounterSubgroup TUsersInfoStorage::GetPartitionCounterSubgroupImpl(const TActorContext& ctx, const TString& monitoringProjectId) const {

@@ -1193,7 +1193,7 @@ void TPartition::Initialize(const TActorContext& ctx) {
     DbId = Config.GetYdbDatabaseId();
     DbPath = Config.GetYdbDatabasePath();
     FolderId = Config.GetYcFolderId();
-    MonitoringProjectId = Config.GetMonitoringProjectId();
+    MonitoringProjectId = GetMonitoringProjectId(Config);
 
     UsersInfoStorage.ConstructInPlace(DCId,
                                       TopicConverter,

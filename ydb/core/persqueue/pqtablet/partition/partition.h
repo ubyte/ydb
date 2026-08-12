@@ -50,6 +50,13 @@ enum class ECommitState {
     Aborted
 };
 
+inline TString GetMonitoringProjectId(const NKikimrPQ::TPQTabletConfig& config) {
+    TString monitoringProjectId = config.GetMonitoringProjectId();
+    if (monitoringProjectId.empty()) {
+        monitoringProjectId = "logbroker";
+    }
+    return monitoringProjectId;
+}
 
 class IAutopartitioningManager;
 class TPartitionCompaction;
