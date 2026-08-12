@@ -57,15 +57,16 @@ namespace NYdb::NConsoleClient {
                 continue;
             }
 
-            auto messageDelayMs = params.HandleMessageDelay.MilliSeconds();
-            if (messageDelayMs > 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(messageDelayMs));
-            }
 
             deleteMessageBatchRequestEntries.push_back(
                 Aws::SQS::Model::DeleteMessageBatchRequestEntry()
                     .WithReceiptHandle(messages[i].GetReceiptHandle())
                     .WithId(messages[i].GetMessageId()));
+        }
+
+        const TDuration messageDelay = params.HandleMessageDelay * deleteMessageBatchRequestEntries.size();
+        if (messageDelay >= TDuration::MilliSeconds(1)) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(messageDelay.MilliSeconds()));
         }
 
         if (!deleteMessageBatchRequestEntries.empty()) {
