@@ -25,7 +25,7 @@ namespace NYdb::NConsoleClient {
         constexpr auto ERROR_MESSAGES_DESTINY_FATAL = "fatal";
 
         void DecrementStartedCountAndNotify(const TSqsWorkloadReaderParams& params) {
-            std::unique_lock locker(*params.Mutex);
+            // std::unique_lock locker(*params.Mutex);
             --(*params.StartedCount);
             params.FinishedCond->notify_all();
         }
@@ -152,10 +152,11 @@ namespace NYdb::NConsoleClient {
                 AMZ_TARGET_HEADER, SQS_TARGET_RECEIVE_MESSAGE);
 
             {
-                std::unique_lock locker(*params.Mutex);
                 // WorkersCount tasks are running in parallel and also WorkersCount tasks are waiting in executor queue
-                while (*params.StartedCount >= params.WorkersCount * 2) {
-                    params.FinishedCond->wait(locker);
+                auto hasFree = [&params]() { return *params.StartedCount < params.WorkersCount * 2; };
+                if (!hasFree()) {
+                    std::unique_lock locker(*params.Mutex);
+                    params.FinishedCond->wait(locker, hasFree);
                 }
 
                 ++(*params.StartedCount);
